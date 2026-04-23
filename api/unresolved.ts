@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getGroq, sendJson, MODEL } from './_groq';
+import { getGroq, sendJson, MODEL } from './_groq.js';
 
 interface Participant { id: string; display_name: string; }
 interface Message {
