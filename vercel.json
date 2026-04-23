@@ -2,8 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     { "source": "/((?!api/|assets/|favicon.svg).*)", "destination": "/index.html" }
-  ],
-  "functions": {
-    "api/*.ts": { "runtime": "nodejs22.x" }
-  }
+  ]
 }
