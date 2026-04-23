@@ -1,6 +1,5 @@
-import { getGroq, jsonResponse, MODEL, readJson } from './_groq';
-
-export const config = { runtime: 'nodejs' };
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getGroq, sendJson, MODEL } from './_groq';
 
 interface Participant {
   id: string;
@@ -14,7 +13,6 @@ interface Message {
   created_at: string;
   classification: unknown;
 }
-
 interface Payload {
   messages: Message[];
   participants: Participant[];
@@ -65,12 +63,12 @@ RULES:
 - Never invent. If the data does not support something, do not note it.
 - If the conversation was healthy and balanced, say so. Do not manufacture problems.`;
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return jsonResponse({ error: 'method not allowed' }, 405);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return sendJson(res, { error: 'method not allowed' }, 405);
   const groq = getGroq();
-  const payload = await readJson<Payload>(req);
-  if (!payload) return jsonResponse({ error: 'bad json' }, 400);
-  if (!groq) return jsonResponse({ error: 'groq not configured' }, 503);
+  const payload = req.body as Payload;
+  if (!payload) return sendJson(res, { error: 'bad json' }, 400);
+  if (!groq) return sendJson(res, { error: 'groq not configured' }, 503);
 
   const participantNameById = new Map(payload.participants.map((p) => [p.id, p.display_name]));
   const startMs = payload.messages.length > 0 ? new Date(payload.messages[0].created_at).getTime() : 0;
@@ -110,8 +108,8 @@ Write the minutes document. JSON only.`;
     });
     const raw = completion.choices[0]?.message?.content ?? '{}';
     const parsed = JSON.parse(raw);
-    return jsonResponse(parsed);
+    return sendJson(res, parsed);
   } catch (err) {
-    return jsonResponse({ error: 'minutes failed', detail: String(err) }, 500);
+    return sendJson(res, { error: 'minutes failed', detail: String(err) }, 500);
   }
 }

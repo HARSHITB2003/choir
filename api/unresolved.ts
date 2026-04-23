@@ -1,18 +1,13 @@
-import { getGroq, jsonResponse, MODEL, readJson } from './_groq';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getGroq, sendJson, MODEL } from './_groq';
 
-export const config = { runtime: 'nodejs' };
-
-interface Participant {
-  id: string;
-  display_name: string;
-}
+interface Participant { id: string; display_name: string; }
 interface Message {
   id: string;
   participant_id: string;
   body: string;
   created_at: string;
 }
-
 interface Payload {
   messages: Message[];
   participants: Participant[];
@@ -42,12 +37,12 @@ RULES:
 - If a thread has been addressed later, omit it.
 - Never flag rhetorical questions as unresolved.`;
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return jsonResponse({ error: 'method not allowed' }, 405);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return sendJson(res, { error: 'method not allowed' }, 405);
   const groq = getGroq();
-  const payload = await readJson<Payload>(req);
-  if (!payload) return jsonResponse({ error: 'bad json' }, 400);
-  if (!groq) return jsonResponse({ unresolved: [] });
+  const payload = req.body as Payload;
+  if (!payload) return sendJson(res, { error: 'bad json' }, 400);
+  if (!groq) return sendJson(res, { unresolved: [] });
 
   const participantNameById = new Map(payload.participants.map((p) => [p.id, p.display_name]));
   const now = Date.now();
@@ -72,8 +67,8 @@ export default async function handler(req: Request): Promise<Response> {
     });
     const raw = completion.choices[0]?.message?.content ?? '{"unresolved":[]}';
     const parsed = JSON.parse(raw);
-    return jsonResponse({ unresolved: Array.isArray(parsed.unresolved) ? parsed.unresolved.slice(0, 5) : [] });
+    return sendJson(res, { unresolved: Array.isArray(parsed.unresolved) ? parsed.unresolved.slice(0, 5) : [] });
   } catch (err) {
-    return jsonResponse({ unresolved: [], error: String(err) }, 500);
+    return sendJson(res, { unresolved: [], error: String(err) }, 500);
   }
 }

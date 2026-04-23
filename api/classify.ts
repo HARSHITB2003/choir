@@ -1,20 +1,17 @@
-import { getGroq, jsonResponse, MODEL, readJson } from './_groq';
-
-export const config = { runtime: 'nodejs' };
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getGroq, sendJson, MODEL } from './_groq';
 
 interface Participant {
   id: string;
   display_name: string;
   colour: string;
 }
-
 interface Message {
   id: string;
   participant_id: string;
   body: string;
   created_at: string;
 }
-
 interface Payload {
   newMessage: Message;
   history: Message[];
@@ -54,16 +51,16 @@ Weight guidelines:
 - agreement: 0.4-0.6
 - filler: 0.2-0.3`;
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return jsonResponse({ error: 'method not allowed' }, 405);
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method !== 'POST') return sendJson(res, { error: 'method not allowed' }, 405);
   const groq = getGroq();
-  const payload = await readJson<Payload>(req);
-  if (!payload) return jsonResponse({ error: 'bad json' }, 400);
-  if (!groq) return jsonResponse({ error: 'groq not configured' }, 503);
+  const payload = req.body as Payload;
+  if (!payload || !payload.newMessage) return sendJson(res, { error: 'bad json' }, 400);
+  if (!groq) return sendJson(res, { error: 'groq not configured' }, 503);
 
   const participantNameById = new Map(payload.participants.map((p) => [p.id, p.display_name]));
 
-  const historyText = payload.history
+  const historyText = (payload.history || [])
     .map((m) => `[id:${m.id}] ${participantNameById.get(m.participant_id) ?? 'unknown'}: ${m.body}`)
     .join('\n');
 
@@ -92,7 +89,7 @@ Classify. Return JSON only.`;
     });
     const raw = completion.choices[0]?.message?.content ?? '{}';
     const parsed = JSON.parse(raw);
-    return jsonResponse({
+    return sendJson(res, {
       type: parsed.type ?? 'builds_on',
       relates_to_message_ids: Array.isArray(parsed.relates_to_message_ids) ? parsed.relates_to_message_ids : [],
       original_speaker_if_steals: parsed.original_speaker_if_steals ?? null,
@@ -100,6 +97,6 @@ Classify. Return JSON only.`;
       weight: typeof parsed.weight === 'number' ? parsed.weight : 1.0,
     });
   } catch (err) {
-    return jsonResponse({ error: 'classify failed', detail: String(err) }, 500);
+    return sendJson(res, { error: 'classify failed', detail: String(err) }, 500);
   }
 }
